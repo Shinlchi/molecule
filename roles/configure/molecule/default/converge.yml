@@ -1,0 +1,13 @@
+---
+- name: "Converge : applique demo.harbor_like.configure"
+  hosts: all
+  gather_facts: false
+  vars:
+    # Redirigé vers un chemin writable côté container / localhost.
+    harbor_state_dir: "/tmp/demo_harbor_like"
+  tasks:
+    - name: "Inclure le rôle configure"
+      ansible.builtin.include_role:
+        name: demo.harbor_like.configure
+      vars:
+        entries: "{{ harbor_entries }}"

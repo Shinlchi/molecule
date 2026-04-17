@@ -1,0 +1,36 @@
+---
+- name: "Vérifier que 'server' est défini"
+  ansible.builtin.assert:
+    that:
+      - server is defined
+      - server is mapping
+      - server.url is defined
+      - server.username is defined
+      - server.password is defined
+    fail_msg: >-
+      La variable 'server' doit être un dict contenant au minimum 'url',
+      'username' et 'password'.
+    quiet: true
+
+- name: "Vérifier que 'entries' est une liste"
+  ansible.builtin.assert:
+    that:
+      - entries is defined
+      - entries is iterable
+      - entries is not string
+    fail_msg: "La variable 'entries' doit être une liste (peut être vide)."
+    quiet: true
+
+- name: "Préparer le répertoire d'état local (démo)"
+  ansible.builtin.file:
+    path: "{{ harbor_state_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: "Appliquer chaque entry"
+  ansible.builtin.include_tasks: create_entry.yml
+  loop: "{{ entries }}"
+  loop_control:
+    loop_var: entry
+    index_var: entry_index
+    label: "entry[{{ entry_index }}] -> {{ (entry.keys() | list) | join(',') }}"

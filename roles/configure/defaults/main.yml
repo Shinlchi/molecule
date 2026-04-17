@@ -1,0 +1,22 @@
+---
+# Configuration serveur cible (Harbor-like).
+# Surchargé par le consommateur.
+server:
+  url: "https://harbor.local"
+  username: "admin"
+  password: "changeme"
+  validate_certs: true
+
+# Liste des entrées à appliquer.
+# Chaque item est un dict avec une seule clé (project, registry, ...).
+entries: []
+
+# Répertoire local où le rôle écrit son état (utilisé par la démo /
+# molecule pour pouvoir vérifier l'idempotence sans vrai Harbor).
+harbor_state_dir: "/tmp/demo_harbor_like"
+
+# Valeurs par défaut appliquées à un project si non fournies.
+harbor_project_defaults:
+  visibility: "private"
+  storage_limit_gb: -1  # -1 = unlimited
+  auto_scan: false

@@ -1,0 +1,36 @@
+---
+# See: https://ansible.readthedocs.io/projects/lint/configuring/
+profile: production
+
+exclude_paths:
+  - .cache/
+  - .github/
+  - .venv/
+  - .tox/
+  - collections/
+  - roles/configure/molecule/*/.cache/
+
+use_default_rules: true
+
+skip_list:
+  # Noms de tasks : on préfère le français dans cette démo.
+  - name[casing]
+
+warn_list:
+  - experimental
+  - fqcn-builtins
+
+enable_list:
+  - yaml
+  - no-log-password
+  - no-same-owner
+
+offline: false
+
+kinds:
+  - playbook: "playbooks/*.yml"
+  - playbook: "roles/configure/molecule/*/converge.yml"
+  - playbook: "roles/configure/molecule/*/verify.yml"
+  - tasks: "roles/*/tasks/*.yml"
+  - vars: "roles/*/defaults/*.yml"
+  - meta: "roles/*/meta/main.yml"

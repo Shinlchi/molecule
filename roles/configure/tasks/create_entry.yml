@@ -1,0 +1,34 @@
+---
+# Applique une "entry" unique.
+# Une entry est un dict avec une seule clé : project, registry, robot, ...
+# Dans cette démo on ne gère que 'project'.
+
+- name: "Valider la forme de l'entry"
+  ansible.builtin.assert:
+    that:
+      - entry is mapping
+      - (entry.keys() | list | length) == 1
+    fail_msg: >-
+      Chaque entry doit être un dict avec exactement une clé
+      (project, registry, ...). Reçu : {{ entry }}
+    quiet: true
+
+- name: "Déterminer le type et les items de l'entry"
+  ansible.builtin.set_fact:
+    entry_kind: "{{ (entry.keys() | list)[0] }}"
+    entry_items: "{{ (entry.values() | list)[0] | default([], true) }}"
+
+- name: "Traiter les projects de l'entry"
+  when: entry_kind == "project"
+  ansible.builtin.include_tasks: create_project.yml
+  loop: "{{ entry_items }}"
+  loop_control:
+    loop_var: project_in
+    label: "project={{ project_in.name | default('?') }}"
+
+- name: "Avertir pour les types non supportés"
+  when: entry_kind != "project"
+  ansible.builtin.debug:
+    msg: >-
+      Entry de type '{{ entry_kind }}' ignorée dans cette démo
+      (seul 'project' est implémenté).

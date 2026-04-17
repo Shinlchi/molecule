@@ -1,0 +1,34 @@
+---
+# Applique un project unique.
+# Dans un vrai rôle on appellerait ici un module `harbor_project` ou un
+# uri vers l'API Harbor. Pour garder la démo auto-suffisante (tests
+# molecule sans vrai Harbor), on matérialise l'état dans un fichier JSON.
+
+- name: "Normaliser le project"
+  ansible.builtin.set_fact:
+    project: "{{ harbor_project_defaults | combine(project_in) }}"
+
+- name: "Vérifier que le project a un nom"
+  ansible.builtin.assert:
+    that:
+      - project.name is defined
+      - project.name | length > 0
+      - project.visibility in ['public', 'private']
+    fail_msg: >-
+      Un project doit définir 'name' (non vide) et 'visibility'
+      dans ['public', 'private']. Reçu : {{ project }}
+    quiet: true
+
+- name: "Écrire l'état du project (idempotent)"
+  ansible.builtin.copy:
+    dest: "{{ harbor_state_dir }}/project-{{ project.name }}.json"
+    content: "{{ project | to_nice_json(indent=2) }}\n"
+    mode: "0644"
+  register: project_write
+
+- name: "Journaliser l'application du project"
+  ansible.builtin.debug:
+    msg: >-
+      project '{{ project.name }}' (visibility={{ project.visibility }})
+      {{ 'créé/modifié' if project_write.changed else 'déjà à jour' }}
+      sur {{ server.url }}

@@ -1,0 +1,50 @@
+---
+# Playbook consommateur : montre comment un autre projet appelle
+# `demo.harbor_like.configure` avec ses propres entries.
+#
+# Usage :
+#   ansible-galaxy collection install demo.harbor_like
+#   ansible-playbook -i inventory playbooks/consumer.yml \
+#     -e harbor_admin_password="$HARBOR_ADMIN_PASSWORD"
+
+- name: "Configurer Harbor à partir de notre liste d'entries"
+  hosts: localhost
+  gather_facts: false
+  connection: local
+  vars:
+    # Ces deux variables seraient typiquement dans group_vars/ ou
+    # fournies par Vault / un gestionnaire de secrets.
+    harbor_server:
+      url: "https://harbor.example.com"
+      username: "admin"
+      password: "{{ harbor_admin_password | default('changeme') }}"
+      validate_certs: true
+
+    # C'est la liste que le projet consommateur maintient.
+    # On respecte EXACTEMENT la forme demandée :
+    #   harbor_entries:
+    #     - project:
+    #         - name: demo
+    #           visibility: public
+    #     - ...
+    harbor_entries:
+      - project:
+          - name: demo
+            visibility: public
+      - project:
+          - name: equipe-backend
+            visibility: private
+            storage_limit_gb: 50
+            auto_scan: true
+      - project:
+          - name: equipe-data
+            visibility: private
+            storage_limit_gb: 200
+
+  tasks:
+    - name: "Appliquer la configuration via demo.harbor_like.configure"
+      ansible.builtin.include_role:
+        name: demo.harbor_like.configure
+      vars:
+        server: "{{ harbor_server }}"
+        entries: "{{ harbor_entries }}"

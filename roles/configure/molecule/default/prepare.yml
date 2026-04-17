@@ -1,0 +1,9 @@
+---
+- name: "Prepare : nettoyage de l'état précédent pour partir de zéro"
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: "Supprimer le répertoire d'état s'il existe"
+      ansible.builtin.file:
+        path: "/tmp/demo_harbor_like"
+        state: absent

@@ -1,0 +1,29 @@
+---
+namespace: demo
+name: harbor_like
+version: 1.0.0
+readme: README.md
+authors:
+  - Daniel <phamdaniel64000@gmail.com>
+description: >-
+  Collection de démo qui imite la configuration d'un Harbor-like
+  (projets, registries, etc.) à partir d'une liste d'entries déclaratives.
+license:
+  - MIT
+tags:
+  - demo
+  - harbor
+  - registry
+  - configuration
+dependencies: {}
+repository: https://example.com/demo/harbor_like
+documentation: https://example.com/demo/harbor_like/docs
+homepage: https://example.com/demo/harbor_like
+issues: https://example.com/demo/harbor_like/issues
+build_ignore:
+  - .venv
+  - .tox
+  - .cache
+  - .pytest_cache
+  - tests/output
+  - "*.tar.gz"
