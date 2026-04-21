@@ -1,29 +1,10 @@
 ---
 galaxy_info:
   role_name: configure
-  namespace: demo
+  namespace: poc
   author: Daniel
-  description: >-
-    Applique une configuration Harbor-like à partir d'une liste déclarative
-    d'entries.
-  company: Demo
+  description: Configure a MinIO instance (users, buckets, quotas)
   license: MIT
-  min_ansible_version: "2.15"
-  platforms:
-    - name: Ubuntu
-      versions:
-        - jammy
-        - noble
-    - name: Debian
-      versions:
-        - bookworm
-    - name: EL
-      versions:
-        - "9"
-  galaxy_tags:
-    - demo
-    - harbor
-    - registry
-    - configuration
+  min_ansible_version: "2.17"
 
 dependencies: []

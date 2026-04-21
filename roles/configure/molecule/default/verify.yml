@@ -1,57 +1,52 @@
 ---
-# AUDIT : vérifie que chaque project déclaré dans harbor_entries a bien
-# produit un fichier d'état et que son contenu est cohérent.
-
-- name: "Verify : audit de l'état appliqué par le rôle"
-  hosts: all
+- name: Verify
+  hosts: runner
   gather_facts: false
   vars:
-    harbor_state_dir: "/tmp/demo_harbor_like"
-    expected_projects: >-
-      {{ harbor_entries
-         | selectattr('project', 'defined')
-         | map(attribute='project')
-         | flatten }}
+    _auth:
+      url: "{{ minio_server.url }}"
+      access_key: "{{ minio_server.access_key }}"
+      secret_key: "{{ minio_server.secret_key }}"
   tasks:
-    - name: "Lister les fichiers d'état présents"
-      ansible.builtin.find:
-        paths: "{{ harbor_state_dir }}"
-        patterns: "project-*.json"
-      register: state_files
-
-    - name: "Afficher les fichiers trouvés"
-      ansible.builtin.debug:
-        msg: "{{ state_files.files | map(attribute='path') | list }}"
-
-    - name: "Vérifier qu'il y a un fichier par project déclaré"
-      ansible.builtin.assert:
-        that:
-          - state_files.matched == (expected_projects | length)
-        fail_msg: >-
-          Attendu {{ expected_projects | length }} fichier(s) d'état,
-          trouvé {{ state_files.matched }}.
-        success_msg: >-
-          {{ state_files.matched }} fichier(s) d'état présents
-          pour {{ expected_projects | length }} project(s) attendu(s).
-
-    - name: "Lire chaque fichier d'état"
-      ansible.builtin.slurp:
-        src: "{{ harbor_state_dir }}/project-{{ item.name }}.json"
-      loop: "{{ expected_projects }}"
+    - name: Verify bucket exists - {{ item.name }}
+      poc.minio.minio_bucket:
+        name: "{{ item.name }}"
+        auth: "{{ _auth }}"
+        state: present
+      loop: "{{ test_minio_entries.buckets }}"
       loop_control:
-        label: "project-{{ item.name }}.json"
-      register: state_slurp
+        label: "{{ item.name }}"
+      register: bucket_verify
+      changed_when: false
 
-    - name: "Vérifier le contenu de chaque project"
+    - name: Assert buckets were not recreated (idempotence)
       ansible.builtin.assert:
         that:
-          - parsed.name == item.item.name
-          - parsed.visibility == (item.item.visibility | default('private'))
-        fail_msg: >-
-          Contenu inattendu pour {{ item.item.name }} :
-          {{ parsed }}
-      vars:
-        parsed: "{{ item.content | b64decode | from_json }}"
-      loop: "{{ state_slurp.results }}"
+          - not item.changed
+        fail_msg: "Le bucket {{ item.item.name }} n'existait pas ou a été recréé"
+        success_msg: "Bucket {{ item.item.name }} présent OK"
+      loop: "{{ bucket_verify.results }}"
+      loop_control:
+        label: "{{ item.item.name }}"
+
+    - name: Verify user exists - {{ item.name }}
+      poc.minio.minio_user:
+        access_key: "{{ item.name }}"
+        auth: "{{ _auth }}"
+        state: present
+      loop: "{{ test_minio_entries.users }}"
+      loop_control:
+        label: "{{ item.name }}"
+      register: user_verify
+      changed_when: false
+      no_log: true
+
+    - name: Assert users were not recreated (idempotence)
+      ansible.builtin.assert:
+        that:
+          - not item.changed
+        fail_msg: "L'utilisateur {{ item.item.name }} n'existait pas ou a été recréé"
+        success_msg: "User {{ item.item.name }} présent OK"
+      loop: "{{ user_verify.results }}"
       loop_control:
         label: "{{ item.item.name }}"

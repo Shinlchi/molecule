@@ -1,13 +1,11 @@
 ---
-- name: "Converge : applique demo.harbor_like.configure"
-  hosts: all
+- name: Converge
+  hosts: runner
   gather_facts: false
-  vars:
-    # Redirigé vers un chemin writable côté container / localhost.
-    harbor_state_dir: "/tmp/demo_harbor_like"
   tasks:
-    - name: "Inclure le rôle configure"
+    - name: Configure MinIO
       ansible.builtin.include_role:
-        name: demo.harbor_like.configure
+        name: configure
       vars:
-        entries: "{{ harbor_entries }}"
+        server: "{{ minio_server }}"
+        entries: "{{ test_minio_entries }}"

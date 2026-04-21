@@ -1,9 +1,17 @@
 ---
-- name: "Prepare : nettoyage de l'état précédent pour partir de zéro"
-  hosts: all
-  gather_facts: false
+- name: Prepare runner
+  hosts: runner
+  gather_facts: true
   tasks:
-    - name: "Supprimer le répertoire d'état s'il existe"
-      ansible.builtin.file:
-        path: "/tmp/demo_harbor_like"
-        state: absent
+    - name: Install minio Python package
+      ansible.builtin.raw: pip install "minio>=7.1.4"
+      changed_when: true
+
+    - name: Wait for MinIO to be ready
+      ansible.builtin.uri:
+        url: "http://minio:9000/minio/health/live"
+        status_code: 200
+      register: health
+      until: health.status == 200
+      retries: 30
+      delay: 3

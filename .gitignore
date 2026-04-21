@@ -1,0 +1,5 @@
+.venv/
+collections/
+*.tar.gz
+__pycache__/
+*.pyc
