@@ -9,19 +9,16 @@ platforms:
     env:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin123
-    published_ports:
-      - "9000:9000"
-      - "9001:9001"
     pre_build_image: true
     networks:
-      - name: molecule-poc-minio
+      - name: "molecule-poc-minio-{{ lookup('env', 'CI_JOB_ID') | default('local') }}"
 
-  - name: runner
+  - name: kess
     image: python:3.12-slim
     command: sleep infinity
     pre_build_image: true
     networks:
-      - name: molecule-poc-minio
+      - name: "molecule-poc-minio-{{ lookup('env', 'CI_JOB_ID') | default('local') }}"
 
 provisioner:
   name: ansible
@@ -31,8 +28,6 @@ provisioner:
     defaults:
       interpreter_python: auto_silent
       callbacks_enabled: "profile_tasks,timer"
-  playbooks:
-    side_effect: audit.yml
   inventory:
     group_vars:
       all:
@@ -54,27 +49,3 @@ provisioner:
               size: 1GiB
             - name: khozilek-contact-plan
               size: 512MiB
-
-verifier:
-  name: ansible
-
-scenario:
-  name: default
-  create_sequence:
-    - create
-  prepare_sequence:
-    - prepare
-  converge_sequence:
-    - converge
-  destroy_sequence:
-    - destroy
-  test_sequence:
-    - dependency
-    - syntax
-    - create
-    - prepare
-    - converge
-    - idempotence
-    - side_effect
-    - verify
-    - destroy

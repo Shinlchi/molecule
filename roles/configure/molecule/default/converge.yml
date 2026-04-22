@@ -1,6 +1,6 @@
 ---
 - name: Converge
-  hosts: runner
+  hosts: kess
   gather_facts: false
   tasks:
     - name: Configure MinIO

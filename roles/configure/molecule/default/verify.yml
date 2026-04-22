@@ -1,52 +1,89 @@
 ---
 - name: Verify
-  hosts: runner
+  hosts: kess
   gather_facts: false
-  vars:
-    _auth:
-      url: "{{ minio_server.url }}"
-      access_key: "{{ minio_server.access_key }}"
-      secret_key: "{{ minio_server.secret_key }}"
   tasks:
-    - name: Verify bucket exists - {{ item.name }}
-      poc.minio.minio_bucket:
-        name: "{{ item.name }}"
-        auth: "{{ _auth }}"
-        state: present
-      loop: "{{ test_minio_entries.buckets }}"
-      loop_control:
-        label: "{{ item.name }}"
-      register: bucket_verify
-      changed_when: false
-
-    - name: Assert buckets were not recreated (idempotence)
-      ansible.builtin.assert:
-        that:
-          - not item.changed
-        fail_msg: "Le bucket {{ item.item.name }} n'existait pas ou a été recréé"
-        success_msg: "Bucket {{ item.item.name }} présent OK"
-      loop: "{{ bucket_verify.results }}"
-      loop_control:
-        label: "{{ item.item.name }}"
-
-    - name: Verify user exists - {{ item.name }}
-      poc.minio.minio_user:
-        access_key: "{{ item.name }}"
-        auth: "{{ _auth }}"
-        state: present
-      loop: "{{ test_minio_entries.users }}"
-      loop_control:
-        label: "{{ item.name }}"
-      register: user_verify
+    - name: Configure mc alias
+      ansible.builtin.command:
+        cmd: >-
+          mc alias set {{ minio_alias }}
+          {{ minio_server.url }}
+          {{ minio_server.access_key }}
+          {{ minio_server.secret_key }}
       changed_when: false
       no_log: true
 
-    - name: Assert users were not recreated (idempotence)
+    - name: List buckets
+      ansible.builtin.command:
+        cmd: mc ls --json {{ minio_alias }}/
+      register: buckets_raw
+      changed_when: false
+
+    - name: Assert exact bucket list
       ansible.builtin.assert:
         that:
-          - not item.changed
-        fail_msg: "L'utilisateur {{ item.item.name }} n'existait pas ou a été recréé"
-        success_msg: "User {{ item.item.name }} présent OK"
-      loop: "{{ user_verify.results }}"
+          - buckets_raw.stdout_lines | map('from_json') | map(attribute='key')
+            | map('regex_replace', '/$', '') | sort | list
+            == test_minio_entries.buckets | map(attribute='name') | sort | list
+        fail_msg: >-
+          Buckets réels : {{ buckets_raw.stdout_lines | map('from_json') | map(attribute='key') | map('regex_replace', '/$', '') | sort | list }}
+          Attendus : {{ test_minio_entries.buckets | map(attribute='name') | sort | list }}
+
+    - name: Get bucket quota - {{ item.name }}
+      ansible.builtin.command:
+        cmd: mc quota info --json {{ minio_alias }}/{{ item.name }}
+      register: quota_results
+      changed_when: false
+      loop: "{{ test_minio_entries.buckets }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Assert bucket quota - {{ item.item.name }}
+      ansible.builtin.assert:
+        that:
+          - (item.stdout | from_json).quota == (item.item.size | human_to_bytes)
+        fail_msg: >-
+          Quota incorrect sur {{ item.item.name }} :
+          réel={{ (item.stdout | from_json).quota }}
+          attendu={{ item.item.size | human_to_bytes }}
+      loop: "{{ quota_results.results }}"
+      loop_control:
+        label: "{{ item.item.name }}"
+
+    - name: List users
+      ansible.builtin.command:
+        cmd: mc admin user list --json {{ minio_alias }}
+      register: users_raw
+      changed_when: false
+      no_log: true
+
+    - name: Assert exact user list
+      ansible.builtin.assert:
+        that:
+          - users_raw.stdout_lines | map('from_json') | map(attribute='accessKey') | sort | list
+            == test_minio_entries.users | map(attribute='name') | sort | list
+        fail_msg: >-
+          Users réels : {{ users_raw.stdout_lines | map('from_json') | map(attribute='accessKey') | sort | list }}
+          Attendus : {{ test_minio_entries.users | map(attribute='name') | sort | list }}
+
+    - name: Get user info - {{ item.name }}
+      ansible.builtin.command:
+        cmd: mc admin user info --json {{ minio_alias }} {{ item.name }}
+      register: user_info_results
+      changed_when: false
+      no_log: true
+      loop: "{{ test_minio_entries.users }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Assert user policy - {{ item.item.name }}
+      ansible.builtin.assert:
+        that:
+          - (item.stdout | from_json).policyName == item.item.policy
+        fail_msg: >-
+          Policy incorrecte sur {{ item.item.name }} :
+          réelle={{ (item.stdout | from_json).policyName }}
+          attendue={{ item.item.policy }}
+      loop: "{{ user_info_results.results }}"
       loop_control:
         label: "{{ item.item.name }}"
