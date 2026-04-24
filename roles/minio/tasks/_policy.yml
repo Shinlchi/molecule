@@ -1,0 +1,10 @@
+---
+- name: Manage policy - {{ entry.name }}
+  poc.minio.minio_policy:
+    name: "{{ entry.name }}"
+    statements: "{{ entry.statements | default(omit) }}"
+    auth:
+      url: "{{ lib_arguments.server.url }}"
+      access_key: "{{ lib_arguments.server.access_key }}"
+      secret_key: "{{ lib_arguments.server.secret_key }}"
+    state: "{{ entry.state | default(minio_state | default('present')) }}"

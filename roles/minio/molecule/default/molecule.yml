@@ -28,24 +28,7 @@ provisioner:
     defaults:
       interpreter_python: auto_silent
       callbacks_enabled: "profile_tasks,timer"
+      deprecation_warnings: "False"
   inventory:
-    group_vars:
-      all:
-        minio_server:
-          url: "http://minio:9000"
-          access_key: "minioadmin"
-          secret_key: "minioadmin123"
-        minio_alias: "test"
-        test_minio_entries:
-          users:
-            - name: ulamog
-              secret_key: "ulamog_pass123"
-              policy: readwrite
-            - name: khozilek
-              secret_key: "khozilek_pass123"
-              policy: readonly
-          buckets:
-            - name: ulamog-ftps
-              size: 1GiB
-            - name: khozilek-contact-plan
-              size: 512MiB
+    links:
+      group_vars: group_vars

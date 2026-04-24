@@ -1,0 +1,170 @@
+---
+- name: Verify
+  hosts: kess
+  gather_facts: false
+  tasks:
+    - name: Configure mc alias
+      ansible.builtin.command:
+        cmd: >-
+          mc alias set {{ minio_alias }}
+          {{ minio_server.url }}
+          {{ minio_server.access_key }}
+          {{ minio_server.secret_key }}
+      changed_when: false
+      no_log: true
+
+    - name: List buckets
+      ansible.builtin.command:
+        cmd: mc ls --json {{ minio_alias }}/
+      register: buckets_raw
+      changed_when: false
+      no_log: true
+
+    - name: Assert exact bucket list
+      vars:
+        got: >-
+          {{ buckets_raw.stdout_lines | map('from_json') | map(attribute='key')
+          | map('regex_replace', '/$', '') | sort | list }}
+        expected: "{{ test_minio_entries.buckets | map(attribute='name') | sort | list }}"
+      ansible.builtin.assert:
+        that:
+          - got == expected
+        success_msg: "Buckets OK | expected: [{{ expected | join(', ') }}] | got: [{{ got | join(', ') }}]"
+        fail_msg: "Buckets KO | expected: [{{ expected | join(', ') }}] | got: [{{ got | join(', ') }}]"
+
+    - name: Get bucket quota
+      ansible.builtin.command:
+        cmd: mc quota info --json {{ minio_alias }}/{{ item.name }}
+      register: quota_results
+      changed_when: false
+      loop: "{{ test_minio_entries.buckets | selectattr('quota', 'defined') | list }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Build quota actual map
+      ansible.builtin.set_fact:
+        quota_actual: >-
+          {{ quota_actual | default({}) | combine({
+            item.item.name: (item.stdout | from_json).quota | int
+          }) }}
+      loop: "{{ quota_results.results }}"
+      loop_control:
+        label: "{{ item.item.name }}"
+      no_log: true
+
+    - name: Assert bucket quota
+      vars:
+        size_units:
+          TiB: 1099511627776
+          GiB: 1073741824
+          MiB: 1048576
+          KiB: 1024
+          GB: 1000000000
+          MB: 1000000
+          KB: 1000
+          B: 1
+        quota_num: "{{ item.quota | regex_replace('[A-Za-z]+$', '') | float }}"
+        quota_unit: "{{ item.quota | regex_replace('^[0-9.]+', '') }}"
+        expected_bytes: "{{ (quota_num | float * size_units[quota_unit]) | int }}"
+        actual_bytes: "{{ quota_actual[item.name] }}"
+      ansible.builtin.assert:
+        that:
+          - actual_bytes | int == expected_bytes | int
+        success_msg: >-
+          {{ item.name }} quota OK
+          | expected: ['{{ item.quota }}' = {{ expected_bytes }} bytes]
+          | got: [{{ actual_bytes }} bytes]
+        fail_msg: >-
+          {{ item.name }} quota KO
+          | expected: ['{{ item.quota }}' = {{ expected_bytes }} bytes]
+          | got: [{{ actual_bytes }} bytes]
+      loop: "{{ test_minio_entries.buckets | selectattr('quota', 'defined') | list }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: List policies
+      ansible.builtin.command:
+        cmd: mc admin policy list --json {{ minio_alias }}
+      register: policies_raw
+      changed_when: false
+      no_log: true
+
+    - name: Assert custom policies exist
+      vars:
+        got: "{{ policies_raw.stdout_lines | map('from_json') | map(attribute='policy') | list }}"
+        expected: "{{ test_minio_entries.policies | default([]) | map(attribute='name') | list }}"
+      ansible.builtin.assert:
+        that:
+          - item.name in got
+        success_msg: "Policy OK | expected: ['{{ item.name }}'] | got: {{ got }}"
+        fail_msg: "Policy KO | expected: ['{{ item.name }}'] | got: {{ got }}"
+      loop: "{{ test_minio_entries.policies | default([]) }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: List users
+      ansible.builtin.command:
+        cmd: mc admin user list --json {{ minio_alias }}
+      register: users_raw
+      changed_when: false
+      no_log: true
+
+    - name: Assert exact user list
+      vars:
+        got: "{{ users_raw.stdout_lines | map('from_json') | map(attribute='accessKey') | sort | list }}"
+        expected: "{{ test_minio_entries.users | map(attribute='name') | sort | list }}"
+      ansible.builtin.assert:
+        that:
+          - got == expected
+        success_msg: "Users OK | expected: [{{ expected | join(', ') }}] | got: [{{ got | join(', ') }}]"
+        fail_msg: "Users KO | expected: [{{ expected | join(', ') }}] | got: [{{ got | join(', ') }}]"
+
+    - name: Get user info
+      ansible.builtin.command:
+        cmd: mc admin user info --json {{ minio_alias }} {{ item.name }}
+      register: user_info_results
+      changed_when: false
+      loop: "{{ test_minio_entries.users | selectattr('policy', 'defined') | list }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Build user policy actual map
+      ansible.builtin.set_fact:
+        user_policy_actual: >-
+          {{ user_policy_actual | default({}) | combine({
+            item.item.name: (item.stdout | from_json).policyName
+          }) }}
+      loop: "{{ user_info_results.results }}"
+      loop_control:
+        label: "{{ item.item.name }}"
+      no_log: true
+
+    - name: Assert user policy
+      ansible.builtin.assert:
+        that:
+          - user_policy_actual[item.name] == item.policy
+        success_msg: "{{ item.name }} policy OK | expected: ['{{ item.policy }}'] | got: ['{{ user_policy_actual[item.name] }}']"
+        fail_msg: "{{ item.name }} policy KO | expected: ['{{ item.policy }}'] | got: ['{{ user_policy_actual[item.name] }}']"
+      loop: "{{ test_minio_entries.users | selectattr('policy', 'defined') | list }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: List groups
+      ansible.builtin.command:
+        cmd: mc admin group list --json {{ minio_alias }}
+      register: groups_raw
+      changed_when: false
+      no_log: true
+
+    - name: Assert groups exist
+      vars:
+        got: "{{ (groups_raw.stdout | from_json).groups | default([]) }}"
+        expected: "{{ test_minio_entries.groups | default([]) | map(attribute='name') | list }}"
+      ansible.builtin.assert:
+        that:
+          - item.name in got
+        success_msg: "Groupe OK | expected: ['{{ item.name }}'] | got: {{ got }}"
+        fail_msg: "Groupe KO | expected: ['{{ item.name }}'] | got: {{ got }}"
+      loop: "{{ test_minio_entries.groups | default([]) }}"
+      loop_control:
+        label: "{{ item.name }}"

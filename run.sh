@@ -22,20 +22,13 @@ else
   DOCKER_SOCK="/var/run/docker.sock"
 fi
 
-echo "==> Build de l'image runner (${ARCH})..."
-docker build \
-  --platform "linux/${ARCH}" \
-  -t "${IMAGE}" \
-  -f "${SCRIPT_DIR}/Dockerfile.runner" \
-  "${SCRIPT_DIR}"
-
 DOCKER_RUN=(
   docker run --rm -it
   --platform "linux/${ARCH}"
   -v "${SCRIPT_DIR}:/workspace"
   -v "${DOCKER_SOCK}:/var/run/docker.sock"
   -w /workspace
-  "${IMAGE}"
+  molecule:latest
 )
 
 if [ "${MODE}" = "shell" ]; then

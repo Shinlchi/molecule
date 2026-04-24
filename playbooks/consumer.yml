@@ -1,32 +1,15 @@
 ---
-- name: Configure MinIO
+- name: Manage MinIO resources
   hosts: localhost
   gather_facts: false
   connection: local
-  vars:
-    minio_server:
-      url: "{{ sys_minio_url }}"
-      access_key: "{{ sys_minio_access_key }}"
-      secret_key: "{{ sys_minio_secret_key }}"
-
-    minio_entries:
-      users:
-        - name: ulamog
-          secret_key: "{{ vault_ulamog_key }}"
-          policy: readwrite
-        - name: khozilek
-          secret_key: "{{ vault_khozilek_key }}"
-          policy: readonly
-      buckets:
-        - name: ulamog-ftps
-          size: 10GiB
-        - name: khozilek-contact-plan
-          size: 1GiB
 
   tasks:
-    - name: Configure MinIO
+    - name: Manage MinIO
       ansible.builtin.include_role:
-        name: poc.minio.configure
+        name: poc.minio.minio
       vars:
-        server: "{{ minio_server }}"
-        entries: "{{ minio_entries }}"
+        role: configure       # configure | unconfigure
+        lib_arguments:
+          server: "{{ sys_storage_server }}"
+          entries: "{{ app_storage_entries }}"

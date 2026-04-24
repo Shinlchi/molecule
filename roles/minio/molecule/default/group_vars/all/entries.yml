@@ -1,0 +1,29 @@
+---
+test_minio_entries:
+  policies:
+    - name: app-readonly
+      statements:
+        - effect: Allow
+          actions:
+            - s3:GetObject
+            - s3:ListBucket
+          resources:
+            - arn:aws:s3:::ulamog-ftps
+            - arn:aws:s3:::ulamog-ftps/*
+  buckets:
+    - name: ulamog-ftps
+      quota: 1GiB
+    - name: khozilek-contact-plan
+      quota: 512MiB
+  groups:
+    - name: readers
+      members:
+        - khozilek
+      policy: app-readonly
+  users:
+    - name: ulamog
+      secret_key: "ulamog_pass123"
+      policy: readwrite
+    - name: khozilek
+      secret_key: "khozilek_pass123"
+  service_accounts: []

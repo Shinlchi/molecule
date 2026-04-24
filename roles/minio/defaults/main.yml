@@ -1,0 +1,14 @@
+---
+role: configure
+
+lib_arguments:
+  server:
+    url: "http://localhost:9000"
+    access_key: "minioadmin"
+    secret_key: "minioadmin"
+  entries:
+    policies: []
+    buckets: []
+    groups: []
+    users: []
+    service_accounts: []

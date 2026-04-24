@@ -1,0 +1,12 @@
+---
+- name: Manage user - {{ entry.name }}
+  poc.minio.minio_user:
+    access_key: "{{ entry.name }}"
+    secret_key: "{{ entry.secret_key | default(omit) }}"
+    policy: "{{ entry.policy | default(omit) }}"
+    auth:
+      url: "{{ lib_arguments.server.url }}"
+      access_key: "{{ lib_arguments.server.access_key }}"
+      secret_key: "{{ lib_arguments.server.secret_key }}"
+    state: "{{ entry.state | default(minio_state | default('present')) }}"
+  no_log: true

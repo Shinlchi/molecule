@@ -1,9 +1,9 @@
 ---
 galaxy_info:
-  role_name: configure
+  role_name: minio
   namespace: poc
   author: Daniel
-  description: Configure a MinIO instance (users, buckets, quotas)
+  description: Configure a MinIO instance (policies, buckets, groups, users, service accounts)
   license: MIT
   min_ansible_version: "2.17"
 

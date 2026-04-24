@@ -11,3 +11,4 @@ dependencies: {}
 build_ignore:
   - .venv
   - "*.tar.gz"
+  - collections/

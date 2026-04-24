@@ -1,0 +1,57 @@
+---
+- name: Validate lib_arguments
+  ansible.builtin.assert:
+    that:
+      - lib_arguments is mapping
+      - lib_arguments.server is mapping
+      - lib_arguments.server.url is defined and lib_arguments.server.url | length > 0
+      - lib_arguments.server.access_key is defined and lib_arguments.server.access_key | length > 0
+      - lib_arguments.server.secret_key is defined
+      - role in ['configure', 'unconfigure']
+    fail_msg: "lib_arguments.server doit avoir url, access_key et secret_key. role doit être 'configure' ou 'unconfigure'"
+    quiet: true
+
+- name: Process policies
+  ansible.builtin.include_tasks: _policy.yml
+  loop: "{{ lib_arguments.entries.policies | default([]) }}"
+  loop_control:
+    loop_var: entry
+    label: "{{ entry.name }}"
+  vars:
+    minio_state: "{{ 'present' if role == 'configure' else 'absent' }}"
+
+- name: Process buckets
+  ansible.builtin.include_tasks: _bucket.yml
+  loop: "{{ lib_arguments.entries.buckets | default([]) }}"
+  loop_control:
+    loop_var: entry
+    label: "{{ entry.name }}"
+  vars:
+    minio_state: "{{ 'present' if role == 'configure' else 'absent' }}"
+
+- name: Process users
+  ansible.builtin.include_tasks: _user.yml
+  loop: "{{ lib_arguments.entries.users | default([]) }}"
+  loop_control:
+    loop_var: entry
+    label: "{{ entry.name }}"
+  vars:
+    minio_state: "{{ 'present' if role == 'configure' else 'absent' }}"
+
+- name: Process service accounts
+  ansible.builtin.include_tasks: _service_account.yml
+  loop: "{{ lib_arguments.entries.service_accounts | default([]) }}"
+  loop_control:
+    loop_var: entry
+    label: "{{ entry.name }}"
+  vars:
+    minio_state: "{{ 'present' if role == 'configure' else 'absent' }}"
+
+- name: Process groups
+  ansible.builtin.include_tasks: _group.yml
+  loop: "{{ lib_arguments.entries.groups | default([]) }}"
+  loop_control:
+    loop_var: entry
+    label: "{{ entry.name }}"
+  vars:
+    minio_state: "{{ 'present' if role == 'configure' else 'absent' }}"

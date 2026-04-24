@@ -70,11 +70,8 @@ users:
 import json
 
 from ansible.module_utils.basic import AnsibleModule
-from ansible_collections.poc.minio.plugins.module_utils.minio_utils import (
-    minio_client,
-    minio_admin_client,
-    minio_argument_spec,
-)
+from ansible_collections.poc.minio.plugins.module_utils.client import get_client, get_admin_client
+from ansible_collections.poc.minio.plugins.module_utils.args import auth_argument_spec
 
 
 def _bucket_quota(admin, name):
@@ -95,12 +92,12 @@ def _user_list(admin):
 
 def main():
     module = AnsibleModule(
-        argument_spec=minio_argument_spec(),
+        argument_spec=auth_argument_spec(),
         supports_check_mode=True,
     )
 
-    client = minio_client(module)
-    admin = minio_admin_client(module)
+    client = get_client(module)
+    admin = get_admin_client(module)
 
     buckets = []
     for b in client.list_buckets():

@@ -91,10 +91,8 @@ changed:
 import json
 
 from ansible.module_utils.basic import AnsibleModule
-from ansible_collections.poc.minio.plugins.module_utils.minio_utils import (
-    minio_admin_client,
-    minio_argument_spec,
-)
+from ansible_collections.poc.minio.plugins.module_utils.client import get_admin_client
+from ansible_collections.poc.minio.plugins.module_utils.args import auth_argument_spec
 
 
 def _user_info(admin, access_key):
@@ -113,7 +111,7 @@ def _current_policies(info):
 
 
 def main():
-    argument_spec = minio_argument_spec(
+    argument_spec = auth_argument_spec(
         access_key=dict(type="str", required=True),
         secret_key=dict(type="str", required=False, no_log=True),
         policy=dict(type="str", required=False, default=None),
@@ -133,7 +131,7 @@ def main():
     state = module.params["state"]
     changed = False
 
-    admin = minio_admin_client(module)
+    admin = get_admin_client(module)
     info = _user_info(admin, access_key)
     exists = info is not None
 

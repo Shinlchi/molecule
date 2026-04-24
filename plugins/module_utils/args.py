@@ -6,14 +6,6 @@ from __future__ import absolute_import, division, print_function
 __metaclass__ = type
 
 import re
-from urllib.parse import urlparse
-
-try:
-    import minio
-    import minio.credentials.providers
-    HAS_MINIO = True
-except ImportError:
-    HAS_MINIO = False
 
 # IEC (puissances de 1024) et SI (puissances de 1000), dans l'ordre le plus long en premier
 # pour que la regex tente "GiB" avant "G"
@@ -39,12 +31,7 @@ def parse_size(size_str):
     return int(value * _SIZE_UNITS[unit])
 
 
-def ensure_minio(module):
-    if not HAS_MINIO:
-        module.fail_json(msg="Le package Python 'minio>=7.1.4' est requis.")
-
-
-def minio_argument_spec(**kwargs):
+def auth_argument_spec(**kwargs):
     """Retourne un argument_spec incluant le bloc 'auth' standard."""
     spec = dict(
         auth=dict(
@@ -60,31 +47,3 @@ def minio_argument_spec(**kwargs):
     )
     spec.update(kwargs)
     return spec
-
-
-def minio_client(module):
-    """Client S3 MinIO (opérations sur les buckets et objets)."""
-    ensure_minio(module)
-    auth = module.params["auth"]
-    parsed = urlparse(auth["url"])
-    return minio.Minio(
-        parsed.netloc,
-        access_key=auth["access_key"],
-        secret_key=auth["secret_key"],
-        secure=parsed.scheme == "https",
-    )
-
-
-def minio_admin_client(module):
-    """Client admin MinIO (utilisateurs, policies, quotas)."""
-    ensure_minio(module)
-    auth = module.params["auth"]
-    parsed = urlparse(auth["url"])
-    return minio.MinioAdmin(
-        endpoint=parsed.netloc,
-        credentials=minio.credentials.providers.StaticProvider(
-            auth["access_key"],
-            auth["secret_key"],
-        ),
-        secure=parsed.scheme == "https",
-    )
