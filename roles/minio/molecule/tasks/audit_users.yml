@@ -1,0 +1,64 @@
+---
+- name: List users
+  ansible.builtin.command:
+    cmd: mc admin user list --json {{ minio_alias }}
+  register: audit_users_raw
+  changed_when: false
+  no_log: true
+
+- name: Assert users present
+  vars:
+    got: "{{ audit_users_raw.stdout_lines | map('from_json') | map(attribute='accessKey') | sort | list }}"
+    expected: "{{ test_minio_entries.users | map(attribute='name') | sort | list }}"
+  ansible.builtin.assert:
+    that:
+      - got == expected
+    success_msg: "Users present OK | expected: [{{ expected | join(', ') }}] | got: [{{ got | join(', ') }}]"
+    fail_msg: "Users present KO | expected: [{{ expected | join(', ') }}] | got: [{{ got | join(', ') }}]"
+  when: minio_expected == 'present'
+
+- name: Assert users absent
+  vars:
+    got: "{{ audit_users_raw.stdout_lines | map('from_json') | map(attribute='accessKey') | list }}"
+  ansible.builtin.assert:
+    that:
+      - item.name not in got
+    success_msg: "User {{ item.name }} absent OK"
+    fail_msg: "User {{ item.name }} absent KO | still present: {{ got }}"
+  loop: "{{ test_minio_entries.users | default([]) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: minio_expected == 'absent'
+
+- name: Get user info
+  ansible.builtin.command:
+    cmd: mc admin user info --json {{ minio_alias }} {{ item.name }}
+  register: audit_user_info_results
+  changed_when: false
+  loop: "{{ test_minio_entries.users | selectattr('policy', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: minio_expected == 'present'
+
+- name: Build user policy actual map
+  ansible.builtin.set_fact:
+    audit_user_policy_actual: >-
+      {{ audit_user_policy_actual | default({}) | combine({
+        item.item.name: (item.stdout | from_json).policyName
+      }) }}
+  loop: "{{ audit_user_info_results.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  no_log: true
+  when: minio_expected == 'present'
+
+- name: Assert user policy
+  ansible.builtin.assert:
+    that:
+      - audit_user_policy_actual[item.name] == item.policy
+    success_msg: "{{ item.name }} policy OK | {{ item.policy }}"
+    fail_msg: "{{ item.name }} policy KO | expected: {{ item.policy }} | got: {{ audit_user_policy_actual[item.name] }}"
+  loop: "{{ test_minio_entries.users | selectattr('policy', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: minio_expected == 'present'

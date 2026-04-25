@@ -1,5 +1,5 @@
 ---
-- name: Manage bucket - {{ entry.name }}
+- name: Manage bucket
   poc.minio.minio_bucket:
     name: "{{ entry.name }}"
     quota: "{{ entry.quota | default(omit) }}"
@@ -7,4 +7,9 @@
       url: "{{ lib_arguments.server.url }}"
       access_key: "{{ lib_arguments.server.access_key }}"
       secret_key: "{{ lib_arguments.server.secret_key }}"
-    state: "{{ entry.state | default(minio_state | default('present')) }}"
+    state: "{{ entry.state | default(_minio_state) }}"
+  no_log: false
+  loop: "{{ lib_arguments.entries.buckets | default([]) }}"
+  loop_control:
+    loop_var: entry
+    label: "{{ entry.name }}"

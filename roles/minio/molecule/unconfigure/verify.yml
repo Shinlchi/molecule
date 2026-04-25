@@ -3,7 +3,7 @@
   hosts: kess
   gather_facts: false
   tasks:
-    - name: Audit MinIO state - present
+    - name: Audit MinIO state - absent
       ansible.builtin.include_tasks: ../tasks/audit.yml
       vars:
-        minio_expected: present
+        minio_expected: absent

@@ -27,6 +27,7 @@ DOCKER_RUN=(
   --platform "linux/${ARCH}"
   -v "${SCRIPT_DIR}:/workspace"
   -v "${DOCKER_SOCK}:/var/run/docker.sock"
+  --name molecule
   -w /workspace
   molecule:latest
 )
@@ -34,7 +35,7 @@ DOCKER_RUN=(
 if [ "${MODE}" = "shell" ]; then
   echo "==> Shell interactif — tu es dans /workspace"
   echo "    Commandes utiles :"
-  echo "      cd roles/configure"
+  echo "      cd roles/minio"
   echo "      molecule create"
   echo "      molecule prepare"
   echo "      molecule converge"

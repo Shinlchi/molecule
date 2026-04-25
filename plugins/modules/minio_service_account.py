@@ -137,6 +137,7 @@ import json
 from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.poc.minio.plugins.module_utils.client import get_admin_client
 from ansible_collections.poc.minio.plugins.module_utils.args import auth_argument_spec
+from minio.minioadmin import _COMMAND, encrypt, decrypt
 
 
 def _build_policy_doc(statements):
@@ -154,12 +155,46 @@ def _build_policy_doc(statements):
 
 
 def _sa_exists(admin, access_key):
-    """Retourne True si le service account existe."""
     try:
-        admin.service_account_info(access_key)
+        secret = admin._provider.retrieve().secret_key
+        response = admin._url_open(
+            method="GET",
+            command=_COMMAND.SERVICE_ACCOUNT_INFO,
+            query_params={"accessKey": access_key},
+            preload_content=False,
+        )
+        decrypt(response, secret)
         return True
     except Exception:
         return False
+
+
+def _sa_create(admin, access_key_id, secret_key, user, statements):
+    data = {
+        "status": "enabled",
+        "accessKey": access_key_id,
+        "secretKey": secret_key,
+        "targetUser": user,
+    }
+    if statements:
+        data["policy"] = _build_policy_doc(statements)
+    body = json.dumps(data).encode()
+    secret = admin._provider.retrieve().secret_key
+    response = admin._url_open(
+        method="PUT",
+        command=_COMMAND.SERVICE_ACCOUNT_ADD,
+        body=encrypt(body, secret),
+        preload_content=False,
+    )
+    decrypt(response, secret)
+
+
+def _sa_remove(admin, access_key):
+    admin._url_open(
+        method="DELETE",
+        command=_COMMAND.SERVICE_ACCOUNT_DELETE,
+        query_params={"accessKey": access_key},
+    )
 
 
 def main():
@@ -186,7 +221,7 @@ def main():
             module.fail_json(msg="'access_key' est requis pour supprimer un service account")
         if _sa_exists(admin, access_key):
             if not module.check_mode:
-                admin.service_account_remove(access_key)
+                _sa_remove(admin, access_key)
             changed = True
         module.exit_json(changed=changed)
 
@@ -199,21 +234,9 @@ def main():
     if access_key and _sa_exists(admin, access_key):
         module.exit_json(changed=False, access_key=access_key)
 
-    policy = json.dumps(_build_policy_doc(statements)) if statements else None
-
     if not module.check_mode:
-        resp = admin.service_account_add(
-            access_key=user,
-            access_key_id=access_key,
-            secret_key=secret_key,
-            policy=policy,
-        )
-        result = json.loads(resp) if isinstance(resp, (str, bytes)) else resp
-        module.exit_json(
-            changed=True,
-            access_key=result.get("accessKey", access_key),
-            secret_key=result.get("secretKey", secret_key),
-        )
+        _sa_create(admin, access_key, secret_key, user, statements)
+        module.exit_json(changed=True, access_key=access_key)
 
     module.exit_json(changed=True, access_key=access_key)
 

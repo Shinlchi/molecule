@@ -1,68 +1,68 @@
 ---
 test_minio_entries:
   policies:
-    - name: app-readonly
+    - name: exile-readonly
       statements:
         - effect: Allow
           actions:
             - s3:GetObject
             - s3:ListBucket
           resources:
-            - arn:aws:s3:::ulamog-ftps
-            - arn:aws:s3:::ulamog-ftps/*
-    - name: app-writeonly
+            - arn:aws:s3:::ulamog-return
+            - arn:aws:s3:::ulamog-return/*
+    - name: exile-writeonly
       statements:
         - effect: Allow
           actions:
             - s3:PutObject
             - s3:DeleteObject
           resources:
-            - arn:aws:s3:::ulamog-ftps/*
-    - name: app-deny-delete
+            - arn:aws:s3:::ulamog-return/*
+    - name: exile-deny-delete
       statements:
         - effect: Allow
           actions:
             - s3:GetObject
             - s3:PutObject
           resources:
-            - arn:aws:s3:::ulamog-ftps/*
+            - arn:aws:s3:::ulamog-return/*
         - effect: Deny
           actions:
             - s3:DeleteObject
           resources:
-            - arn:aws:s3:::ulamog-ftps/*
+            - arn:aws:s3:::ulamog-return/*
   buckets:
-    - name: ulamog-ftps
+    - name: ulamog-return
       quota: 1GiB
-    - name: khozilek-contact-plan
+    - name: khozilek-wrath
       quota: 512MiB
-    - name: public-assets
+    - name: eldrazi-remnant
   groups:
-    - name: readers
+    - name: exiles
       members:
-        - khozilek
-      policy: app-readonly
-    - name: writers
+        - khozilek-grave
+      policy: exile-readonly
+    - name: remnants
       members:
-        - ulamog
-    - name: ops
-      policy: app-writeonly
+        - ulamog-exile
+    - name: echoes
+      policy: exile-writeonly
   users:
-    - name: ulamog
+    - name: ulamog-exile
       secret_key: "ulamog_pass123"
       policy: readwrite
-    - name: khozilek
+    - name: khozilek-grave
       secret_key: "khozilek_pass123"
   service_accounts:
-    - name: sa-ulamog-full
-      secret_key: "sa_ulamog_full_123"
-      user: ulamog
-    - name: sa-ulamog-scoped
-      secret_key: "sa_ulamog_scoped_123"
-      user: ulamog
+    - name: sa-exile-full
+      secret_key: "sa_exile_full_123"
+      user: ulamog-exile
+    - name: sa-exile-scoped
+      secret_key: "sa_exile_scoped_123"
+      user: ulamog-exile
       statements:
         - effect: Allow
           actions:
             - s3:GetObject
           resources:
-            - arn:aws:s3:::ulamog-ftps/*
+            - arn:aws:s3:::ulamog-return/*

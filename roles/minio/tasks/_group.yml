@@ -1,5 +1,5 @@
 ---
-- name: Manage group - {{ entry.name }}
+- name: Manage group
   poc.minio.minio_group:
     name: "{{ entry.name }}"
     members: "{{ entry.members | default([]) }}"
@@ -8,4 +8,9 @@
       url: "{{ lib_arguments.server.url }}"
       access_key: "{{ lib_arguments.server.access_key }}"
       secret_key: "{{ lib_arguments.server.secret_key }}"
-    state: "{{ entry.state | default(minio_state | default('present')) }}"
+    state: "{{ entry.state | default(_minio_state) }}"
+  no_log: false
+  loop: "{{ lib_arguments.entries.groups | default([]) }}"
+  loop_control:
+    loop_var: entry
+    label: "{{ entry.name }}"

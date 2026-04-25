@@ -1,0 +1,25 @@
+---
+- name: Configure mc alias
+  ansible.builtin.command:
+    cmd: >-
+      mc alias set {{ minio_alias }}
+      {{ minio_server.url }}
+      {{ minio_server.access_key }}
+      {{ minio_server.secret_key }}
+  changed_when: false
+  no_log: true
+
+- name: Audit buckets
+  ansible.builtin.include_tasks: audit_buckets.yml
+
+- name: Audit policies
+  ansible.builtin.include_tasks: audit_policies.yml
+
+- name: Audit users
+  ansible.builtin.include_tasks: audit_users.yml
+
+- name: Audit groups
+  ansible.builtin.include_tasks: audit_groups.yml
+
+- name: Audit service accounts
+  ansible.builtin.include_tasks: audit_service_accounts.yml

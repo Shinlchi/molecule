@@ -1,0 +1,82 @@
+---
+- name: List buckets
+  ansible.builtin.command:
+    cmd: mc ls --json {{ minio_alias }}/
+  register: audit_buckets_raw
+  changed_when: false
+  no_log: true
+
+- name: Assert buckets present
+  vars:
+    got: >-
+      {{ audit_buckets_raw.stdout_lines | map('from_json') | map(attribute='key')
+      | map('regex_replace', '/$', '') | sort | list }}
+    expected: "{{ test_minio_entries.buckets | map(attribute='name') | sort | list }}"
+  ansible.builtin.assert:
+    that:
+      - got == expected
+    success_msg: "Buckets present OK | expected: [{{ expected | join(', ') }}] | got: [{{ got | join(', ') }}]"
+    fail_msg: "Buckets present KO | expected: [{{ expected | join(', ') }}] | got: [{{ got | join(', ') }}]"
+  when: minio_expected == 'present'
+
+- name: Assert buckets absent
+  vars:
+    got: >-
+      {{ audit_buckets_raw.stdout_lines | map('from_json') | map(attribute='key')
+      | map('regex_replace', '/$', '') | list }}
+  ansible.builtin.assert:
+    that:
+      - item.name not in got
+    success_msg: "Bucket {{ item.name }} absent OK"
+    fail_msg: "Bucket {{ item.name }} absent KO | still present: {{ got }}"
+  loop: "{{ test_minio_entries.buckets | default([]) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: minio_expected == 'absent'
+
+- name: Get bucket quota
+  ansible.builtin.command:
+    cmd: mc quota info --json {{ minio_alias }}/{{ item.name }}
+  register: audit_quota_results
+  changed_when: false
+  loop: "{{ test_minio_entries.buckets | selectattr('quota', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: minio_expected == 'present'
+
+- name: Build quota actual map
+  ansible.builtin.set_fact:
+    audit_quota_actual: >-
+      {{ audit_quota_actual | default({}) | combine({
+        item.item.name: (item.stdout | from_json).quota | int
+      }) }}
+  loop: "{{ audit_quota_results.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  no_log: true
+  when: minio_expected == 'present'
+
+- name: Assert bucket quota
+  vars:
+    size_units:
+      TiB: 1099511627776
+      GiB: 1073741824
+      MiB: 1048576
+      KiB: 1024
+      GB: 1000000000
+      MB: 1000000
+      KB: 1000
+      B: 1
+    quota_num: "{{ item.quota | regex_replace('[A-Za-z]+$', '') | float }}"
+    quota_unit: "{{ item.quota | regex_replace('^[0-9.]+', '') }}"
+    expected_bytes: "{{ (quota_num | float * size_units[quota_unit]) | int }}"
+    actual_bytes: "{{ audit_quota_actual[item.name] }}"
+  ansible.builtin.assert:
+    that:
+      - actual_bytes | int == expected_bytes | int
+    success_msg: "{{ item.name }} quota OK | {{ item.quota }} = {{ expected_bytes }} B"
+    fail_msg: "{{ item.name }} quota KO | expected: {{ item.quota }} ({{ expected_bytes }} B) | got: {{ actual_bytes }} B"
+  loop: "{{ test_minio_entries.buckets | selectattr('quota', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: minio_expected == 'present'

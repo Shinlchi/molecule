@@ -1,0 +1,13 @@
+---
+- name: Converge
+  hosts: kess
+  gather_facts: false
+  tasks:
+    - name: Unconfigure MinIO
+      ansible.builtin.include_role:
+        name: poc.minio.minio
+      vars:
+        role: unconfigure
+        lib_arguments:
+          server: "{{ minio_server }}"
+          entries: "{{ test_minio_entries }}"

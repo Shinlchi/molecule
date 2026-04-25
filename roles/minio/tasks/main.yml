@@ -11,47 +11,24 @@
     fail_msg: "lib_arguments.server doit avoir url, access_key et secret_key. role doit être 'configure' ou 'unconfigure'"
     quiet: true
 
-- name: Process policies
-  ansible.builtin.include_tasks: _policy.yml
-  loop: "{{ lib_arguments.entries.policies | default([]) }}"
-  loop_control:
-    loop_var: entry
-    label: "{{ entry.name }}"
+- name: Set processing context
+  ansible.builtin.set_fact:
+    _minio_state: "{{ 'present' if role == 'configure' else 'absent' }}"
+    _minio_task_files: "{{ configure_order if role == 'configure' else unconfigure_order }}"
   vars:
-    minio_state: "{{ 'present' if role == 'configure' else 'absent' }}"
+    configure_order:
+      - _policy.yml
+      - _bucket.yml
+      - _user.yml
+      - _service_account.yml
+      - _group.yml
+    unconfigure_order:
+      - _service_account.yml
+      - _user.yml
+      - _group.yml
+      - _bucket.yml
+      - _policy.yml
 
-- name: Process buckets
-  ansible.builtin.include_tasks: _bucket.yml
-  loop: "{{ lib_arguments.entries.buckets | default([]) }}"
-  loop_control:
-    loop_var: entry
-    label: "{{ entry.name }}"
-  vars:
-    minio_state: "{{ 'present' if role == 'configure' else 'absent' }}"
-
-- name: Process users
-  ansible.builtin.include_tasks: _user.yml
-  loop: "{{ lib_arguments.entries.users | default([]) }}"
-  loop_control:
-    loop_var: entry
-    label: "{{ entry.name }}"
-  vars:
-    minio_state: "{{ 'present' if role == 'configure' else 'absent' }}"
-
-- name: Process service accounts
-  ansible.builtin.include_tasks: _service_account.yml
-  loop: "{{ lib_arguments.entries.service_accounts | default([]) }}"
-  loop_control:
-    loop_var: entry
-    label: "{{ entry.name }}"
-  vars:
-    minio_state: "{{ 'present' if role == 'configure' else 'absent' }}"
-
-- name: Process groups
-  ansible.builtin.include_tasks: _group.yml
-  loop: "{{ lib_arguments.entries.groups | default([]) }}"
-  loop_control:
-    loop_var: entry
-    label: "{{ entry.name }}"
-  vars:
-    minio_state: "{{ 'present' if role == 'configure' else 'absent' }}"
+- name: Process resources
+  ansible.builtin.include_tasks: "{{ item }}"
+  loop: "{{ _minio_task_files }}"

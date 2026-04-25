@@ -105,11 +105,7 @@ from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.poc.minio.plugins.module_utils.client import get_admin_client
 from ansible_collections.poc.minio.plugins.module_utils.args import auth_argument_spec
 
-try:
-    from minio.minioadmin import _COMMAND
-    HAS_COMMAND = True
-except ImportError:
-    HAS_COMMAND = False
+from minio.minioadmin import _COMMAND
 
 
 def _build_policy_doc(statements):
@@ -135,14 +131,31 @@ def _get_policy(admin, name):
         return None
 
 
+def _normalize_policy(doc):
+    """Normalise un document de policy pour comparaison stable.
+
+    MinIO peut ajouter des champs supplémentaires (Sid, Principal, Condition…)
+    lors de la récupération via policy_info. On ne conserve que Effect/Action/Resource
+    et on trie les listes pour garantir un résultat déterministe.
+    """
+    statements = []
+    for s in doc.get("Statement", []):
+        actions = sorted(s.get("Action", []))
+        resources = sorted(s.get("Resource", []))
+        statements.append({
+            "Effect": s.get("Effect", ""),
+            "Action": actions,
+            "Resource": resources,
+        })
+    statements.sort(key=lambda s: json.dumps(s, sort_keys=True))
+    return {"Version": doc.get("Version", ""), "Statement": statements}
+
+
 def _policy_changed(current, desired):
-    """Compare deux documents de policy (normalisation par tri des clés)."""
-    return json.dumps(current, sort_keys=True) != json.dumps(desired, sort_keys=True)
+    return json.dumps(_normalize_policy(current), sort_keys=True) != json.dumps(_normalize_policy(desired), sort_keys=True)
 
 
 def _apply_policy(admin, name, statements):
-    if not HAS_COMMAND:
-        raise RuntimeError("minio.minioadmin._COMMAND introuvable — version minio incompatible")
     body = json.dumps(_build_policy_doc(statements)).encode()
     admin._url_open(method="PUT", command=_COMMAND.ADD_CANNED_POLICY, query_params={"name": name}, body=body)
 
