@@ -1,0 +1,30 @@
+---
+- name: List groups
+  ansible.builtin.command:
+    cmd: mc admin group list --json {{ minio_alias }}
+  register: audit_groups_raw
+  changed_when: false
+  no_log: true
+
+- name: Assert groups present
+  vars:
+    got: "{{ (audit_groups_raw.stdout | from_json).groups | default([]) | sort | list }}"
+    expected: "{{ test_minio_entries.groups | map(attribute='name') | sort | list }}"
+  ansible.builtin.assert:
+    that:
+      - got == expected
+    success_msg: "Groups present OK | expected: [{{ expected | join(', ') }}] | got: [{{ got | join(', ') }}]"
+    fail_msg: "Groups present KO | expected: [{{ expected | join(', ') }}] | got: [{{ got | join(', ') }}]"
+  when: minio_expected == 'present'
+
+- name: Assert groups absent
+  vars:
+    got: "{{ (audit_groups_raw.stdout | from_json).groups | default([]) | list }}"
+    expected: "{{ test_minio_entries.groups | map(attribute='name') | sort | list }}"
+    still_present: "{{ got | select('in', expected) | sort | list }}"
+  ansible.builtin.assert:
+    that:
+      - still_present | length == 0
+    success_msg: "Groups absent OK | delete_entries: [{{ expected | join(', ') }}] | still present: [{{ still_present | join(', ') }}]"
+    fail_msg: "Groups absent KO | delete_entries: [{{ expected | join(', ') }}] | still present: [{{ still_present | join(', ') }}]"
+  when: minio_expected == 'absent'

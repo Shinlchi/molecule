@@ -4,22 +4,21 @@
   gather_facts: false
   tasks:
     - name: Wait for MinIO to be ready
-      ansible.builtin.uri:
-        url: "http://minio:9000/minio/health/live"
-        status_code: 200
-      register: health
-      until: health.status == 200
-      retries: 30
-      delay: 3
+      ansible.builtin.include_tasks: ../_fixtures/wait_for_minio.yml
 
     - name: Configure mc alias
       ansible.builtin.command:
-        cmd: mc alias set test http://minio:9000 minioadmin minioadmin123
+        cmd: >-
+          mc alias set {{ minio_alias }}
+          {{ minio_server.url }}
+          {{ minio_server.access_key }}
+          {{ minio_server.secret_key }}
       changed_when: false
+      no_log: true
 
     - name: Create buckets
       ansible.builtin.command:
-        cmd: mc mb test/{{ item }}
+        cmd: mc mb {{ minio_alias }}/{{ item }}
       loop:
         - emrakul-vault
         - emrakul-archive
@@ -27,14 +26,12 @@
 
     - name: Set bucket quota
       ansible.builtin.command:
-        cmd: mc quota set test/emrakul-vault --size 1GiB
+        cmd: mc quota set {{ minio_alias }}/emrakul-vault --size 1GiB
       changed_when: true
 
     - name: Create policies
       ansible.builtin.command:
-        cmd: >-
-          mc admin policy create test {{ item.name }}
-          /dev/stdin
+        cmd: mc admin policy create {{ minio_alias }} {{ item.name }} /dev/stdin
         stdin: "{{ item.doc | to_json }}"
       vars:
         policies:
@@ -61,17 +58,18 @@
 
     - name: Create user
       ansible.builtin.command:
-        cmd: mc admin user add test emrakul-scion emrakul_pass123
+        cmd: mc admin user add {{ minio_alias }} emrakul-scion emrakul_pass123
       changed_when: true
+      no_log: true
 
     - name: Attach policy to user
       ansible.builtin.command:
-        cmd: mc admin policy attach test readwrite --user emrakul-scion
+        cmd: mc admin policy attach {{ minio_alias }} readwrite --user emrakul-scion
       changed_when: true
 
     - name: Create groups
       ansible.builtin.command:
-        cmd: mc admin group add test {{ item.name }} {{ item.members | join(' ') }}
+        cmd: mc admin group add {{ minio_alias }} {{ item.name }} {{ item.members | join(' ') }}
       loop:
         - name: emrakul-readers
           members: [emrakul-scion]
@@ -83,13 +81,15 @@
 
     - name: Attach policy to group
       ansible.builtin.command:
-        cmd: mc admin policy attach test emrakul-readonly --group emrakul-readers
+        cmd: mc admin policy attach {{ minio_alias }} emrakul-readonly --group emrakul-readers
       changed_when: true
 
     - name: Create service accounts
       ansible.builtin.command:
-        cmd: mc admin user svcacct add test emrakul-scion
-             --access-key {{ item.name }} --secret-key {{ item.secret_key }}
+        cmd: >-
+          mc admin user svcacct add {{ minio_alias }} emrakul-scion
+          --access-key {{ item.name }}
+          --secret-key {{ item.secret_key }}
       loop:
         - name: sa-emrakul-full
           secret_key: sa_emrakul_full_123

@@ -4,24 +4,7 @@
   gather_facts: false
   tasks:
     - name: Wait for MinIO to be ready
-      ansible.builtin.uri:
-        url: "http://minio:9000/minio/health/live"
-        status_code: 200
-      register: health
-      until: health.status == 200
-      retries: 30
-      delay: 3
+      ansible.builtin.include_tasks: ../_fixtures/wait_for_minio.yml
 
-    - name: Configure MinIO
-      ansible.builtin.include_role:
-        name: poc.minio.minio
-      vars:
-        role: configure
-        lib_arguments:
-          server: "{{ minio_server }}"
-          entries: "{{ test_minio_entries }}"
-
-    - name: Audit MinIO state - present
-      ansible.builtin.include_tasks: ../tasks/audit.yml
-      vars:
-        minio_expected: present
+    - name: Seed MinIO state
+      ansible.builtin.include_tasks: ../_fixtures/seed_full_state.yml

@@ -3,22 +3,25 @@
   hosts: kess
   gather_facts: false
   tasks:
-    - name: Audit MinIO
-      ansible.builtin.include_role:
-        name: poc.minio.minio
-      vars:
-        role: audit
-        lib_arguments:
-          server: "{{ minio_server }}"
+    - name: Read audit result
+      ansible.builtin.slurp:
+        src: /tmp/minio_audit.json
+      register: audit_raw
 
-# minio_audit is registered in the audit role, we can use it here to assert the results
     - name: Assert audit results are not empty
+      vars:
+        audit: "{{ audit_raw.content | b64decode | from_json }}"
       ansible.builtin.assert:
         that:
-          - minio_audit.policies | length > 0
-          - minio_audit.buckets | length > 0
-          - minio_audit.users | length > 0
-          - minio_audit.groups | length > 0
-          - minio_audit.service_accounts | length > 0
-        success_msg: "Audit OK | policies={{ minio_audit.policies | length }} buckets={{ minio_audit.buckets | length }} users={{ minio_audit.users | length }} groups={{ minio_audit.groups | length }} sa={{ minio_audit.service_accounts | length }}"
-        fail_msg: "Audit KO | {{ minio_audit | to_json }}"
+          - audit.policies | length > 0
+          - audit.buckets | length > 0
+          - audit.users | length > 0
+          - audit.groups | length > 0
+          - audit.service_accounts | length > 0
+        success_msg: >-
+          Audit OK | policies={{ audit.policies | length }}
+          buckets={{ audit.buckets | length }}
+          users={{ audit.users | length }}
+          groups={{ audit.groups | length }}
+          sa={{ audit.service_accounts | length }}
+        fail_msg: "Audit KO | {{ audit | to_json }}"

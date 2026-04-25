@@ -1,0 +1,31 @@
+---
+- name: List policies
+  ansible.builtin.command:
+    cmd: mc admin policy list --json {{ minio_alias }}
+  register: audit_policies_raw
+  changed_when: false
+  no_log: true
+
+# MinIO includes built-in policies (readwrite, readonly…) — containment check, not equality.
+- name: Assert policies present
+  vars:
+    got: "{{ audit_policies_raw.stdout_lines | map('from_json') | map(attribute='policy') | list }}"
+    expected: "{{ test_minio_entries.policies | map(attribute='name') | sort | list }}"
+  ansible.builtin.assert:
+    that:
+      - expected is issubset(got)
+    success_msg: "Policies present OK | expected: [{{ expected | join(', ') }}] | got: [{{ got | select('in', expected) | sort | join(', ') }}]"
+    fail_msg: "Policies present KO | missing: [{{ expected | difference(got) | join(', ') }}] | got: [{{ got | sort | join(', ') }}]"
+  when: minio_expected == 'present'
+
+- name: Assert policies absent
+  vars:
+    got: "{{ audit_policies_raw.stdout_lines | map('from_json') | map(attribute='policy') | list }}"
+    expected: "{{ test_minio_entries.policies | map(attribute='name') | sort | list }}"
+    still_present: "{{ got | select('in', expected) | sort | list }}"
+  ansible.builtin.assert:
+    that:
+      - still_present | length == 0
+    success_msg: "Policies absent OK | delete_entries: [{{ expected | join(', ') }}] | still present: [{{ still_present | join(', ') }}]"
+    fail_msg: "Policies absent KO | delete_entries: [{{ expected | join(', ') }}] | still present: [{{ still_present | join(', ') }}]"
+  when: minio_expected == 'absent'

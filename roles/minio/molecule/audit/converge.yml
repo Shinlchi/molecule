@@ -10,3 +10,9 @@
         role: audit
         lib_arguments:
           server: "{{ minio_server }}"
+
+    - name: Persist audit result
+      ansible.builtin.copy:
+        content: "{{ minio_audit | to_json }}"
+        dest: /tmp/minio_audit.json
+        mode: "0644"

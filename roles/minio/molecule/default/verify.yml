@@ -4,6 +4,6 @@
   gather_facts: false
   tasks:
     - name: Audit MinIO state - present
-      ansible.builtin.include_tasks: ../tasks/audit.yml
+      ansible.builtin.include_tasks: ../_tasks/audit.yml
       vars:
         minio_expected: present

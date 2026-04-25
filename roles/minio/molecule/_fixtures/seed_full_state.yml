@@ -1,0 +1,108 @@
+---
+# Seeds MinIO state from test_minio_entries via mc commands — no collection involved.
+# Requires: minio_alias, minio_server, test_minio_entries
+
+- name: Configure mc alias
+  ansible.builtin.command:
+    cmd: >-
+      mc alias set {{ minio_alias }}
+      {{ minio_server.url }}
+      {{ minio_server.access_key }}
+      {{ minio_server.secret_key }}
+  changed_when: false
+  no_log: true
+
+- name: Create buckets
+  ansible.builtin.command:
+    cmd: mc mb {{ minio_alias }}/{{ item.name }}
+  loop: "{{ test_minio_entries.buckets | default([]) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  changed_when: true
+
+- name: Set bucket quotas
+  ansible.builtin.command:
+    cmd: mc quota set {{ minio_alias }}/{{ item.name }} --size {{ item.quota }}
+  loop: "{{ test_minio_entries.buckets | selectattr('quota', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  changed_when: true
+
+- name: Create policies
+  ansible.builtin.command:
+    cmd: mc admin policy create {{ minio_alias }} {{ item.name }} /dev/stdin
+    stdin: >-
+      {%- set stmts = [] -%}
+      {%- for s in item.statements -%}
+      {%- set _ = stmts.append({'Effect': s.effect, 'Action': s.actions, 'Resource': s.resources}) -%}
+      {%- endfor -%}
+      {{ {'Version': '2012-10-17', 'Statement': stmts} | to_json }}
+  loop: "{{ test_minio_entries.policies | default([]) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  changed_when: true
+
+- name: Create users
+  ansible.builtin.command:
+    cmd: mc admin user add {{ minio_alias }} {{ item.name }} {{ item.secret_key }}
+  loop: "{{ test_minio_entries.users | default([]) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  changed_when: true
+  no_log: true
+
+- name: Attach policies to users
+  ansible.builtin.command:
+    cmd: mc admin policy attach {{ minio_alias }} {{ item.policy }} --user {{ item.name }}
+  loop: "{{ test_minio_entries.users | selectattr('policy', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  changed_when: true
+
+# mc admin group add requires at least one member — groups without members are skipped.
+- name: Create groups
+  ansible.builtin.command:
+    cmd: mc admin group add {{ minio_alias }} {{ item.name }} {{ item.members | join(' ') }}
+  loop: "{{ test_minio_entries.groups | selectattr('members', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  changed_when: true
+
+- name: Attach policies to groups
+  ansible.builtin.command:
+    cmd: mc admin policy attach {{ minio_alias }} {{ item.policy }} --group {{ item.name }}
+  loop: "{{ test_minio_entries.groups | selectattr('policy', 'defined') | selectattr('members', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  changed_when: true
+
+- name: Create service accounts
+  ansible.builtin.command:
+    cmd: >-
+      mc admin user svcacct add {{ minio_alias }} {{ item.user }}
+      --access-key {{ item.name }}
+      --secret-key {{ item.secret_key }}
+  loop: "{{ test_minio_entries.service_accounts | rejectattr('statements', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  changed_when: true
+  no_log: true
+
+- name: Create scoped service accounts
+  ansible.builtin.command:
+    cmd: >-
+      mc admin user svcacct add {{ minio_alias }} {{ item.user }}
+      --access-key {{ item.name }}
+      --secret-key {{ item.secret_key }}
+      --policy /dev/stdin
+    stdin: >-
+      {%- set stmts = [] -%}
+      {%- for s in item.statements -%}
+      {%- set _ = stmts.append({'Effect': s.effect, 'Action': s.actions, 'Resource': s.resources}) -%}
+      {%- endfor -%}
+      {{ {'Version': '2012-10-17', 'Statement': stmts} | to_json }}
+  loop: "{{ test_minio_entries.service_accounts | selectattr('statements', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  changed_when: true
+  no_log: true

@@ -20,14 +20,13 @@
 - name: Assert users absent
   vars:
     got: "{{ audit_users_raw.stdout_lines | map('from_json') | map(attribute='accessKey') | list }}"
+    expected: "{{ test_minio_entries.users | map(attribute='name') | sort | list }}"
+    still_present: "{{ got | select('in', expected) | sort | list }}"
   ansible.builtin.assert:
     that:
-      - item.name not in got
-    success_msg: "User {{ item.name }} absent OK"
-    fail_msg: "User {{ item.name }} absent KO | still present: {{ got }}"
-  loop: "{{ test_minio_entries.users | default([]) }}"
-  loop_control:
-    label: "{{ item.name }}"
+      - still_present | length == 0
+    success_msg: "Users absent OK | delete_entries: [{{ expected | join(', ') }}] | still present: [{{ still_present | join(', ') }}]"
+    fail_msg: "Users absent KO | delete_entries: [{{ expected | join(', ') }}] | still present: [{{ still_present | join(', ') }}]"
   when: minio_expected == 'absent'
 
 - name: Get user info
@@ -35,6 +34,7 @@
     cmd: mc admin user info --json {{ minio_alias }} {{ item.name }}
   register: audit_user_info_results
   changed_when: false
+  no_log: true
   loop: "{{ test_minio_entries.users | selectattr('policy', 'defined') | list }}"
   loop_control:
     label: "{{ item.name }}"
@@ -52,13 +52,12 @@
   no_log: true
   when: minio_expected == 'present'
 
-- name: Assert user policy
+- name: Assert user policies
+  vars:
+    expected: "{{ test_minio_entries.users | selectattr('policy', 'defined') | items2dict(key_name='name', value_name='policy') }}"
   ansible.builtin.assert:
     that:
-      - audit_user_policy_actual[item.name] == item.policy
-    success_msg: "{{ item.name }} policy OK | {{ item.policy }}"
-    fail_msg: "{{ item.name }} policy KO | expected: {{ item.policy }} | got: {{ audit_user_policy_actual[item.name] }}"
-  loop: "{{ test_minio_entries.users | selectattr('policy', 'defined') | list }}"
-  loop_control:
-    label: "{{ item.name }}"
+      - audit_user_policy_actual == expected
+    success_msg: "User policies present OK | expected: {{ expected }} | got: {{ audit_user_policy_actual }}"
+    fail_msg: "User policies present KO | expected: {{ expected }} | got: {{ audit_user_policy_actual }}"
   when: minio_expected == 'present'

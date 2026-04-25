@@ -1,0 +1,9 @@
+---
+- name: Wait for MinIO to be ready
+  ansible.builtin.uri:
+    url: "http://minio:9000/minio/health/live"
+    status_code: 200
+  register: health
+  until: health.status | default(0) == 200
+  retries: 30
+  delay: 3

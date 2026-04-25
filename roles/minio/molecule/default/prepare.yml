@@ -4,10 +4,4 @@
   gather_facts: false
   tasks:
     - name: Wait for MinIO to be ready
-      ansible.builtin.uri:
-        url: "http://minio:9000/minio/health/live"
-        status_code: 200
-      register: health
-      until: health.status == 200
-      retries: 30
-      delay: 3
+      ansible.builtin.include_tasks: ../_fixtures/wait_for_minio.yml
