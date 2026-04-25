@@ -10,7 +10,7 @@ DOCUMENTATION = r"""
 module: minio_info
 short_description: Retourne l'état complet d'un serveur MinIO
 description:
-  - Collecte la liste des buckets (avec quota), des utilisateurs (avec policy et statut).
+  - Collecte la liste des policies, buckets, utilisateurs, groupes et service accounts.
 options:
   auth:
     description: Paramètres de connexion MinIO.
@@ -42,6 +42,11 @@ EXAMPLES = r"""
 """
 
 RETURN = r"""
+policies:
+  description: Noms des policies custom (hors policies système MinIO).
+  type: list
+  returned: always
+  elements: str
 buckets:
   description: Liste des buckets avec leur quota.
   type: list
@@ -65,6 +70,30 @@ users:
       type: str
     status:
       type: str
+groups:
+  description: Liste des groupes avec leurs membres et policy.
+  type: list
+  returned: always
+  elements: dict
+  contains:
+    name:
+      type: str
+    members:
+      type: list
+    policy:
+      type: str
+    status:
+      type: str
+service_accounts:
+  description: Liste des service accounts avec leur user parent.
+  type: list
+  returned: always
+  elements: dict
+  contains:
+    access_key:
+      type: str
+    parent_user:
+      type: str
 """
 
 import json
@@ -72,6 +101,15 @@ import json
 from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.poc.minio.plugins.module_utils.client import get_client, get_admin_client
 from ansible_collections.poc.minio.plugins.module_utils.args import auth_argument_spec
+from minio.minioadmin import _COMMAND, decrypt
+
+_BUILTIN_POLICIES = {"readonly", "readwrite", "writeonly", "diagnostics", "consoleAdmin"}
+
+
+def _list_policies(admin):
+    raw = admin.policy_list()
+    data = json.loads(raw) if isinstance(raw, (str, bytes)) else raw
+    return [name for name in (data or {}) if name not in _BUILTIN_POLICIES]
 
 
 def _bucket_quota(admin, name):
@@ -82,12 +120,65 @@ def _bucket_quota(admin, name):
         return 0
 
 
-def _user_list(admin):
-    try:
-        raw = admin.user_list()
-        return json.loads(raw)
-    except Exception:
-        return {}
+def _list_buckets(client, admin):
+    return [
+        {"name": b.name, "quota_bytes": _bucket_quota(admin, b.name)}
+        for b in client.list_buckets()
+    ]
+
+
+def _list_users(admin):
+    raw = admin.user_list()
+    data = json.loads(raw) if isinstance(raw, (str, bytes)) else raw
+    return [
+        {
+            "access_key": ak,
+            "policy": info.get("policyName", ""),
+            "status": info.get("status", ""),
+        }
+        for ak, info in (data or {}).items()
+    ]
+
+
+def _list_groups(admin):
+    raw = admin.group_list()
+    names = json.loads(raw) if isinstance(raw, (str, bytes)) else raw
+    groups = []
+    for name in (names or []):
+        try:
+            info_raw = admin.group_info(name)
+            info = json.loads(info_raw) if isinstance(info_raw, (str, bytes)) else info_raw
+        except Exception:
+            info = {}
+        groups.append({
+            "name": name,
+            "members": info.get("members") or [],
+            "policy": info.get("policy") or None,
+            "status": info.get("status", "enabled"),
+        })
+    return groups
+
+
+def _list_service_accounts(admin, users):
+    secret = admin._provider.retrieve().secret_key
+    service_accounts = []
+    for user in users:
+        try:
+            response = admin._url_open(
+                method="GET",
+                command=_COMMAND.SERVICE_ACCOUNT_LIST,
+                query_params={"user": user},
+                preload_content=False,
+            )
+            data = json.loads(decrypt(response, secret))
+            for sa in data.get("accounts") or []:
+                service_accounts.append({
+                    "access_key": sa.get("accessKey"),
+                    "parent_user": user,
+                })
+        except Exception:
+            pass
+    return service_accounts
 
 
 def main():
@@ -99,22 +190,17 @@ def main():
     client = get_client(module)
     admin = get_admin_client(module)
 
-    buckets = []
-    for b in client.list_buckets():
-        buckets.append({
-            "name": b.name,
-            "quota_bytes": _bucket_quota(admin, b.name),
-        })
+    users = _list_users(admin)
+    user_keys = [u["access_key"] for u in users]
 
-    users = []
-    for access_key, info in _user_list(admin).items():
-        users.append({
-            "access_key": access_key,
-            "policy": info.get("policyName", ""),
-            "status": info.get("status", ""),
-        })
-
-    module.exit_json(changed=False, buckets=buckets, users=users)
+    module.exit_json(
+        changed=False,
+        policies=_list_policies(admin),
+        buckets=_list_buckets(client, admin),
+        users=users,
+        groups=_list_groups(admin),
+        service_accounts=_list_service_accounts(admin, user_keys),
+    )
 
 
 if __name__ == "__main__":

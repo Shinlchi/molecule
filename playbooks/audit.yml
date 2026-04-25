@@ -5,11 +5,10 @@
   connection: local
 
   tasks:
-    - name: Manage MinIO
+    - name: Audit MinIO
       ansible.builtin.include_role:
         name: poc.minio.minio
       vars:
-        role: configure       # configure | unconfigure
+        role: audit
         lib_arguments:
           server: "{{ sys_storage_server }}"
-          entries: "{{ app_storage_entries }}"

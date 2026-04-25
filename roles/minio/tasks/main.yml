@@ -7,27 +7,30 @@
       - lib_arguments.server.url is defined and lib_arguments.server.url | length > 0
       - lib_arguments.server.access_key is defined and lib_arguments.server.access_key | length > 0
       - lib_arguments.server.secret_key is defined
-      - role in ['configure', 'unconfigure']
-    fail_msg: "lib_arguments.server doit avoir url, access_key et secret_key. role doit être 'configure' ou 'unconfigure'"
+      - role in ['configure', 'unconfigure', 'audit']
+    fail_msg: "lib_arguments.server doit avoir url, access_key et secret_key. role doit être 'configure', 'unconfigure' ou 'audit'"
     quiet: true
 
 - name: Set processing context
   ansible.builtin.set_fact:
     _minio_state: "{{ 'present' if role == 'configure' else 'absent' }}"
-    _minio_task_files: "{{ configure_order if role == 'configure' else unconfigure_order }}"
+    _minio_task_files: "{{ task_map[role] }}"
   vars:
-    configure_order:
-      - _policy.yml
-      - _bucket.yml
-      - _user.yml
-      - _service_account.yml
-      - _group.yml
-    unconfigure_order:
-      - _service_account.yml
-      - _user.yml
-      - _group.yml
-      - _bucket.yml
-      - _policy.yml
+    task_map:
+      configure:
+        - _policy.yml
+        - _bucket.yml
+        - _user.yml
+        - _service_account.yml
+        - _group.yml
+      unconfigure:
+        - _service_account.yml
+        - _user.yml
+        - _group.yml
+        - _bucket.yml
+        - _policy.yml
+      audit:
+        - _audit.yml
 
 - name: Process resources
   ansible.builtin.include_tasks: "{{ item }}"

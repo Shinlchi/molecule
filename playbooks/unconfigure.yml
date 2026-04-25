@@ -1,0 +1,15 @@
+---
+- name: Manage MinIO resources
+  hosts: localhost
+  gather_facts: false
+  connection: local
+
+  tasks:
+    - name: Manage MinIO
+      ansible.builtin.include_role:
+        name: poc.minio.minio
+      vars:
+        role: unconfigure
+        lib_arguments:
+          server: "{{ sys_storage_server }}"
+          entries: "{{ app_storage_entries }}"

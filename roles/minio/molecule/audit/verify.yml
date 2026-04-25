@@ -1,0 +1,24 @@
+---
+- name: Verify
+  hosts: kess
+  gather_facts: false
+  tasks:
+    - name: Audit MinIO
+      ansible.builtin.include_role:
+        name: poc.minio.minio
+      vars:
+        role: audit
+        lib_arguments:
+          server: "{{ minio_server }}"
+
+# minio_audit is registered in the audit role, we can use it here to assert the results
+    - name: Assert audit results are not empty
+      ansible.builtin.assert:
+        that:
+          - minio_audit.policies | length > 0
+          - minio_audit.buckets | length > 0
+          - minio_audit.users | length > 0
+          - minio_audit.groups | length > 0
+          - minio_audit.service_accounts | length > 0
+        success_msg: "Audit OK | policies={{ minio_audit.policies | length }} buckets={{ minio_audit.buckets | length }} users={{ minio_audit.users | length }} groups={{ minio_audit.groups | length }} sa={{ minio_audit.service_accounts | length }}"
+        fail_msg: "Audit KO | {{ minio_audit | to_json }}"

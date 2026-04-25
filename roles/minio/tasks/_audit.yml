@@ -1,0 +1,12 @@
+---
+- name: Audit MinIO state
+  poc.minio.minio_info:
+    auth:
+      url: "{{ lib_arguments.server.url }}"
+      access_key: "{{ lib_arguments.server.access_key }}"
+      secret_key: "{{ lib_arguments.server.secret_key }}"
+  register: minio_audit
+
+- name: Display audit result
+  ansible.builtin.debug:
+    var: minio_audit

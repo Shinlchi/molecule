@@ -1,0 +1,48 @@
+---
+test_minio_entries:
+  policies:
+    - name: emrakul-readonly
+      statements:
+        - effect: Allow
+          actions:
+            - s3:GetObject
+            - s3:ListBucket
+          resources:
+            - arn:aws:s3:::emrakul-vault
+            - arn:aws:s3:::emrakul-vault/*
+    - name: emrakul-writeonly
+      statements:
+        - effect: Allow
+          actions:
+            - s3:PutObject
+          resources:
+            - arn:aws:s3:::emrakul-vault/*
+  buckets:
+    - name: emrakul-vault
+      quota: 1GiB
+    - name: emrakul-archive
+  groups:
+    - name: emrakul-readers
+      members:
+        - emrakul-scion
+      policy: emrakul-readonly
+    - name: emrakul-writers
+      members:
+        - emrakul-scion
+  users:
+    - name: emrakul-scion
+      secret_key: "emrakul_pass123"
+      policy: readwrite
+  service_accounts:
+    - name: sa-emrakul-full
+      secret_key: "sa_emrakul_full_123"
+      user: emrakul-scion
+    - name: sa-emrakul-scoped
+      secret_key: "sa_emrakul_scoped_123"
+      user: emrakul-scion
+      statements:
+        - effect: Allow
+          actions:
+            - s3:GetObject
+          resources:
+            - arn:aws:s3:::emrakul-vault/*

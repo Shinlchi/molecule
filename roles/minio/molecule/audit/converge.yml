@@ -1,0 +1,12 @@
+---
+- name: Converge
+  hosts: kess
+  gather_facts: false
+  tasks:
+    - name: Audit MinIO
+      ansible.builtin.include_role:
+        name: poc.minio.minio
+      vars:
+        role: audit
+        lib_arguments:
+          server: "{{ minio_server }}"

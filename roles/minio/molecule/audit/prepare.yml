@@ -1,0 +1,101 @@
+---
+- name: Prepare kess
+  hosts: kess
+  gather_facts: false
+  tasks:
+    - name: Wait for MinIO to be ready
+      ansible.builtin.uri:
+        url: "http://minio:9000/minio/health/live"
+        status_code: 200
+      register: health
+      until: health.status == 200
+      retries: 30
+      delay: 3
+
+    - name: Configure mc alias
+      ansible.builtin.command:
+        cmd: mc alias set test http://minio:9000 minioadmin minioadmin123
+      changed_when: false
+
+    - name: Create buckets
+      ansible.builtin.command:
+        cmd: mc mb test/{{ item }}
+      loop:
+        - emrakul-vault
+        - emrakul-archive
+      changed_when: true
+
+    - name: Set bucket quota
+      ansible.builtin.command:
+        cmd: mc quota set test/emrakul-vault --size 1GiB
+      changed_when: true
+
+    - name: Create policies
+      ansible.builtin.command:
+        cmd: >-
+          mc admin policy create test {{ item.name }}
+          /dev/stdin
+        stdin: "{{ item.doc | to_json }}"
+      vars:
+        policies:
+          - name: emrakul-readonly
+            doc:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action: [s3:GetObject, s3:ListBucket]
+                  Resource:
+                    - arn:aws:s3:::emrakul-vault
+                    - arn:aws:s3:::emrakul-vault/*
+          - name: emrakul-writeonly
+            doc:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action: [s3:PutObject]
+                  Resource: [arn:aws:s3:::emrakul-vault/*]
+      loop: "{{ policies }}"
+      loop_control:
+        label: "{{ item.name }}"
+      changed_when: true
+
+    - name: Create user
+      ansible.builtin.command:
+        cmd: mc admin user add test emrakul-scion emrakul_pass123
+      changed_when: true
+
+    - name: Attach policy to user
+      ansible.builtin.command:
+        cmd: mc admin policy attach test readwrite --user emrakul-scion
+      changed_when: true
+
+    - name: Create groups
+      ansible.builtin.command:
+        cmd: mc admin group add test {{ item.name }} {{ item.members | join(' ') }}
+      loop:
+        - name: emrakul-readers
+          members: [emrakul-scion]
+        - name: emrakul-writers
+          members: [emrakul-scion]
+      loop_control:
+        label: "{{ item.name }}"
+      changed_when: true
+
+    - name: Attach policy to group
+      ansible.builtin.command:
+        cmd: mc admin policy attach test emrakul-readonly --group emrakul-readers
+      changed_when: true
+
+    - name: Create service accounts
+      ansible.builtin.command:
+        cmd: mc admin user svcacct add test emrakul-scion
+             --access-key {{ item.name }} --secret-key {{ item.secret_key }}
+      loop:
+        - name: sa-emrakul-full
+          secret_key: sa_emrakul_full_123
+        - name: sa-emrakul-scoped
+          secret_key: sa_emrakul_scoped_123
+      loop_control:
+        label: "{{ item.name }}"
+      changed_when: true
+      no_log: true

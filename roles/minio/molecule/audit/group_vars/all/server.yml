@@ -1,0 +1,5 @@
+---
+minio_server:
+  url: "http://minio:9000"
+  access_key: "minioadmin"
+  secret_key: "minioadmin123"

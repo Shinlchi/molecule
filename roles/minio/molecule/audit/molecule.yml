@@ -1,0 +1,34 @@
+---
+driver:
+  name: docker
+
+platforms:
+  - name: minio
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    env:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    pre_build_image: true
+    networks:
+      - name: "molecule-poc-minio-{{ lookup('env', 'CI_JOB_ID') | default('local') }}"
+
+  - name: kess
+    image: kess-bastion
+    command: sleep infinity
+    pre_build_image: true
+    networks:
+      - name: "molecule-poc-minio-{{ lookup('env', 'CI_JOB_ID') | default('local') }}"
+
+provisioner:
+  name: ansible
+  env:
+    ANSIBLE_ROLES_PATH: /workspace/roles
+  config_options:
+    defaults:
+      interpreter_python: auto_silent
+      callbacks_enabled: "profile_tasks,timer"
+      deprecation_warnings: "False"
+  inventory:
+    links:
+      group_vars: group_vars
